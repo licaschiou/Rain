@@ -1,0 +1,397 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+	<title>Rain - Chiu Wei-Chieh.</title>
+	<style type="text/css" media="screen">
+		html{
+			height: 100%;
+		}
+		body{
+			background-repeat: no-repeat;
+			background-image: linear-gradient(to bottom, #535953 0%, #373C38 100%); 
+			height: 100%;
+			font-family: sans-serif;
+			margin: 0;
+			padding: 0;
+		}
+		canvas{
+			position: fixed;
+			z-index: -999;
+			width: 100%;
+			top: 0;
+			left: 0;
+			margin: 0;
+		}
+		#backToHome{
+			position: fixed;
+			z-index: 999;
+			top: 5px;
+			left:; 5px;
+		}
+		a{	  
+			color: #fafcf2;
+			text-decoration: none;
+		}
+		a:hover{
+			color: #03a9f4;
+		}
+		audio{
+			position: fixed;
+			right: 0;
+			bottom: 0;
+		}
+	</style>
+</head>
+<body>
+	<div id='backToHome'><a href="http://licaschiou.github.io/portfolio2013/">&#171; back my portfolio page</a></div>
+	<canvas id="myCanvas" style="focus { outline: 0; }" ></canvas>
+	<!-- source: http://blog.soundcloud.com/2011/05/31/found-sounds-its-raining-rain/ -->
+	<audio autoplay="autoplay" controls loop>
+	  <source src="binaural thunderstorm.wav" type="audio/wav">
+	  Your browser does not support this audio format.
+	</audio>
+<script type="text/javascript" src="js/processing.min.js"></script>
+<script type="text/javascript" src="js/jquery-2.0.3.min.js"></script>
+<script type="text/javascript" src="js/Stats.js"></script>
+<script type="text/javascript" src="js/DAT.GUI.min.js"></script>
+
+<script type="text/javascript">
+	//#fffffb #fcfaf2
+	var myCanvas,
+		sketchEngine,
+		stats,
+		gui;
+
+	var dropArray = new Array();
+	var rippleArray = new Array();
+
+	var dropColorPalette = ["fedfe1", "fad689", "dac9a6", "b5caa0", "a5dee4", "a8d8b9", "69B0AC"];
+	var backgroundColor = "00fffffb",
+		maxSize = 12,
+		minSize = maxSize/4,
+		maxAngle = 25,
+		minAngle = 20,
+		density = 0.3,
+		maxLife = 200.0,
+		airDrag = 0.1,
+		windSpeed = 0,
+		fadeOutSpeed = 1.0,
+		maxSpeed = 5;
+		clearBackground = true;
+
+	$(document).ready(function(){
+		myCanvas = $('#myCanvas').get(0);
+		sketchEngine = new Processing(myCanvas, Sketch);
+
+		stats = new Stats();
+		stats.domElement.style.position = 'absolute';
+		stats.domElement.style.bottom = '0px';
+		stats.domElement.style.zIndex = 100;
+		$("body").get(0).appendChild( stats.domElement );
+
+		iniUI();
+	});
+
+	function iniUI(){
+		gui = new dat.GUI();
+
+		var parameters = {
+			density: 1,
+			backgroundColor1: "#535953",
+			backgroundColor2: "#373C38",
+			dropColor1: "#fedfe1",
+			dropColor2: "#fad689",
+			dropColor3: "#dac9a6",
+			dropColor4: "#b5caa0",
+			dropColor5: "#a5dee4",
+			dropColor6: "#a8d8b9",
+			dropColor7: "#69B0AC",
+			windSpeed: 0,
+			dropSpeed: 5.0,
+			dropSize: 12,
+			minSize: 5,
+			maxAngle: 25,
+			minAngle: 20,
+			dropLife: 200,
+			clearBackground: true
+	    };
+
+	    var windSpeedUI = gui.add( parameters, 'windSpeed').min(-5).max(5).step(1).listen();
+		windSpeedUI.onChange(function(value){
+			windSpeed = value/50;
+		});
+
+	    var dropSizeUI = gui.add( parameters, 'dropSize').min(6.0).max(24.0).step(1).listen();
+		dropSizeUI.onChange(function(value){
+			maxSize = value;
+			minSize = maxSize/4;
+		});
+
+	    var dropSpeedUI = gui.add( parameters, 'dropSpeed').min(1.0).max(10.0).step(1).listen();
+		dropSpeedUI.onChange(function(value){
+			maxSpeed = value;
+		});
+
+		var densityUI = gui.add( parameters, 'density').min(1).max(5).step(1).listen();
+		densityUI.onChange(function(value){
+			density = value;
+		});
+
+		var dropLifeUI = gui.add( parameters, 'dropLife').min(100).max(400).step(50).listen();
+		dropLifeUI.onChange(function(value){
+			maxLife = value;
+		});
+
+		var backgroundColor1UI = gui.addColor( parameters, 'backgroundColor1' ).name('BackgroundColor1').listen();
+		backgroundColor1UI.onChange(function(value){
+			$('body').css('background', 'linear-gradient(to bottom, '+ value + ' 0%, ' + parameters.backgroundColor2 + ' 100%)');
+		});
+
+		var backgroundColor2UI = gui.addColor( parameters, 'backgroundColor2' ).name('BackgroundColor2').listen();
+		backgroundColor2UI.onChange(function(value){
+			$('body').css('background', 'linear-gradient(to bottom, '+ parameters.backgroundColor1 + ' 0%, ' + value + ' 100%)');
+		});
+
+		var dropColor1UI = gui.addColor( parameters, 'dropColor1' ).name('Drop Color1').listen();
+		dropColor1UI.onChange(function(value){
+			dropColorPalette[0] = value.replace("#", ""); 
+		});
+
+		var dropColor2UI = gui.addColor( parameters, 'dropColor2' ).name('Drop Color2').listen();
+		dropColor2UI.onChange(function(value){
+			dropColorPalette[1] = value.replace("#", ""); 
+		});
+
+		var dropColor3UI = gui.addColor( parameters, 'dropColor3' ).name('Drop Color3').listen();
+		dropColor3UI.onChange(function(value){
+			dropColorPalette[2] = value.replace("#", ""); 
+		});
+
+		var dropColor4UI = gui.addColor( parameters, 'dropColor4' ).name('Drop Color4').listen();
+		dropColor4UI.onChange(function(value){
+			dropColorPalette[3] = value.replace("#", ""); 
+		});
+
+		var dropColor5UI = gui.addColor( parameters, 'dropColor5' ).name('Drop Color5').listen();
+		dropColor5UI.onChange(function(value){
+			dropColorPalette[4] = value.replace("#", ""); 
+		});
+
+		var dropColor6UI = gui.addColor( parameters, 'dropColor6' ).name('Drop Color6').listen();
+		dropColor6UI.onChange(function(value){
+			dropColorPalette[5] = value.replace("#", ""); 
+		});
+
+		var dropColor7UI = gui.addColor( parameters, 'dropColor7' ).name('Drop Color7').listen();
+		dropColor7UI.onChange(function(value){
+			dropColorPalette[6] = value.replace("#", ""); 
+		});
+
+		var clearBackgroundUI = gui.add(parameters, 'clearBackground');
+		clearBackgroundUI.onChange(function(value){
+			clearBackground = !clearBackground;
+		});
+		gui.open();
+	}
+	
+	function Sketch(processing){
+		var p5 = processing;
+
+		p5.setup=function(){
+			p5.size(window.innerWidth, window.innerHeight);
+			p5.background(p5.unhex(backgroundColor));
+			p5.noStroke();
+		}
+
+		p5.draw=function(){
+			if(clearBackground){
+				p5.background(p5.unhex(backgroundColor));
+			}
+			//p5.fill(p5.unhex(backgroundColor));
+			//p5.rect(0, 0, p5.width, p5.height);
+			for(var i = 0; i < density; i++){
+				var dropSize = Math.random() * (maxSize - minSize) + minSize;
+				var dropAngle = Math.random() * (maxAngle - minAngle) + minAngle;
+				//var alpha = p5.floor(255*(dropSize/20));
+				var newColor = dropColorPalette[p5.floor(dropColorPalette.length * p5.random())];
+				var drop = new RainDrop(p5, dropSize, dropAngle, newColor);
+				drop.setPosition(
+					dropSize + Math.random()*(p5.width - dropSize), 
+					-dropSize*2); 
+				dropArray.push(drop);
+			}
+			for(var i = dropArray.length - 1; i >= 0; i--){
+				dropArray[i].update();
+				dropArray[i].render();
+				if( dropArray[i].life <= 0 || dropArray[i].position.y > (p5.height + 100) ){					
+					if(dropArray[i].position.y < p5.height && dropArray[i].position.y > p5.height*0.75){
+						var ripple = new Ripple(p5, 40, dropArray[i].rgb);
+						ripple.setPosition(
+							dropArray[i].position.x, 
+							dropArray[i].position.y
+						); 
+						rippleArray.push(ripple);
+					}
+					dropArray.splice(i, 1);
+				}
+			}
+
+			for(var i = rippleArray.length - 1; i >= 0; i--){
+				rippleArray[i].update();
+				rippleArray[i].render();
+				if( rippleArray[i].life <= 0){
+					rippleArray.splice(i, 1);
+				}
+			}
+
+			stats.update();	
+		}
+	}
+
+	function Ripple(processing, size, color){
+		var p5 = processing;
+		var ripple = this;
+		ripple.position = new p5.PVector();
+		ripple.size = size;
+		ripple.rgb = color;
+		ripple.color = "ffff0000";
+		ripple.life = Math.random()*(maxLife/2) + maxLife/2;
+		ripple.maxLife = maxLife;
+
+		ripple.setPosition = function(x, y){
+			ripple.position.x = x;
+			ripple.position.y = y;
+		}
+
+		ripple.update = function(){
+			var alpha = p5.floor(255*(ripple.life/ripple.maxLife));
+			ripple.color = p5.hex(alpha, 2) + ripple.rgb;
+			ripple.size ++;
+			ripple.life --;
+		}
+
+		ripple.render = function(){
+			p5.noFill();
+			p5.stroke(p5.unhex(ripple.color));
+			p5.pushMatrix();
+			p5.translate(ripple.position.x, ripple.position.y);
+			p5.ellipse(0, 0, ripple.size, ripple.size/2);
+			p5.popMatrix();
+		}
+
+	}
+
+	function RainDrop(processing, size, angle, color){
+		var p5 = processing;
+		var drop = this;
+		drop.position = new p5.PVector();
+		drop.velocity = new p5.PVector();
+		drop.size = size;
+		drop.gravity = 0.1 * (drop.size/maxSize);		
+		drop.height = 0.0;
+		drop.angle = angle;
+		drop.rgb = color;
+		drop.color = "ffff0000";
+		drop.life = Math.random()*(maxLife/2) + maxLife/2;
+		drop.maxLife = maxLife;
+		drop.ratation = 0.0;
+
+		drop.setPosition = function(x, y){
+			drop.position.x = x;
+			drop.position.y = y;
+		}
+
+		drop.update = function(){
+			var alpha = p5.floor(255*(drop.life/drop.maxLife));
+			drop.color = p5.hex(alpha, 2) + drop.rgb;
+			if(p5.random() > 0.995){
+				drop.gravity *= 3;
+			}
+			if(drop.velocity.y < maxSpeed){
+				drop.velocity.y += drop.gravity;
+			}
+			drop.velocity.x += windSpeed;
+			drop.position.y += drop.velocity.y;
+			drop.position.x += drop.velocity.x;
+			drop.ratation = -p5.PI*0.5 + p5.atan2(drop.velocity.y, drop.velocity.x);
+			drop.life --;
+		}
+
+		drop.render = function(){
+			p5.noStroke();
+			p5.fill(p5.unhex(drop.color));
+			p5.pushMatrix();
+			p5.translate(drop.position.x, drop.position.y);
+			p5.rotate(drop.ratation);
+			var connectPointY = -1*(drop.size/2)*p5.sin(p5.radians(drop.angle));
+			var connectPointX = (drop.size/2)*p5.cos(p5.radians(drop.angle));
+			p5.beginShape();
+			p5.vertex(-connectPointX, connectPointY);
+			p5.vertex(0, -1*(drop.size/2)/p5.sin(p5.radians(drop.angle)));
+			p5.vertex(connectPointX, connectPointY);
+			p5.bezierVertex(
+				connectPointX*1.5, connectPointY + drop.size, 
+				-connectPointX*1.5, connectPointY + drop.size,
+				-connectPointX, connectPointY
+			);
+			p5.endShape(p5.CLOSE);
+			p5.popMatrix();
+		}
+	}
+
+	// Building Objects consume too much resource
+	//function createBuilding(processing){
+	// 	var p5 = processing;
+	// 	var totalWidth = p5.width;
+	// 	var buildingLocation = 0;
+
+	// 	while(totalWidth > 0){
+	// 		var newBuildingWidth = 25 + p5.floor(p5.random()*4)*25;
+	// 		var newBuildingHeight = 25 + p5.floor(p5.random()*8)*25;
+	// 		var building = new Building(p5, newBuildingWidth, newBuildingHeight);
+	// 		building.setPosition(
+	// 			buildingLocation, 
+	// 			p5.height
+	// 		); 
+	// 		buildingArray.push(building);	
+	// 		buildingLocation += newBuildingWidth;
+	// 		totalWidth -= newBuildingWidth;	
+	// 	}
+	// }
+
+	// function Building(processing, width, height){
+	// 	var p5 = processing;
+	// 	var bd = this;//far building.alpha < near building.
+	// 	bd.position = new p5.PVector();
+	// 	bd.width = width;
+	// 	bd.height = height;
+	// 	bd.windowSize = 5;
+	// 	bd.gap = 5;
+	// 	bd.grid = bd.windowSize + bd.gap; 
+	// 	bd.col = (bd.width - bd.gap)/(bd.grid);
+	// 	bd.raw = (bd.height - bd.gap)/(bd.grid);	
+
+	// 	bd.setPosition = function(x, y){
+	// 		bd.position.x = x;
+	// 		bd.position.y = y;
+	// 	}
+
+	// 	bd.render = function(){
+	// 		p5.fill(150);
+	// 		p5.pushMatrix();
+	// 		p5.translate(bd.position.x, bd.position.y);
+	// 		p5.rect(0, 0, bd.width, -bd.height);
+	// 		p5.fill(255);
+	// 		for(var x = 0; x < bd.col; x++){
+	// 			for(var y = 0; y < bd.raw; y++){
+	// 				p5.rect(bd.gap + x*bd.grid, -bd.gap - y*bd.grid, bd.windowSize, bd.windowSize);
+	// 			}
+	// 		}
+	// 		p5.popMatrix();
+	// 	}
+	// }
+
+</script>
+</body>
+</html>
